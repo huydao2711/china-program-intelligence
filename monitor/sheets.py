@@ -56,11 +56,28 @@ def get_or_create_sheet():
 
     sheet_name = os.environ.get("GOOGLE_SHEET_NAME", MONITOR_CONFIG["SHEET_NAME"])
     try:
+        created = False
         try:
             ss = gc.open(sheet_name)
         except Exception:
             ss = gc.create(sheet_name)
+            created = True
             print(f"[Sheets] Created spreadsheet: {sheet_name}")
+
+        # Share sheet with user so it appears in their Google Drive
+        if created:
+            owner_email = os.environ.get("NOTIFY_EMAIL", "")
+            if owner_email:
+                try:
+                    ss.share(owner_email, perm_type="user", role="writer", notify=True)
+                    print(f"[Sheets] Shared with {owner_email} — check Google Drive / email invite")
+                except Exception as e:
+                    print(f"[Sheets] Share failed: {e}")
+
+        # Save sheet URL for email links
+        sheet_url = ss.url
+        os.environ["GOOGLE_SHEET_URL"] = sheet_url
+        print(f"[Sheets] URL: {sheet_url}")
 
         try:
             ws = ss.worksheet("Log")
