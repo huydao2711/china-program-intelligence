@@ -1,10 +1,10 @@
 """
 monitor/sheets.py — Google Sheets integration via gspread.
-Replaces Sheets.gs. Uses a Service Account for auth.
 
 Env vars needed:
   GOOGLE_SERVICE_ACCOUNT_JSON  — full JSON content of service account key
-  GOOGLE_SHEET_NAME            — sheet name (default: "WeChat Monitor Log")
+  GOOGLE_SHEET_ID              — spreadsheet ID (preferred)
+  GOOGLE_SHEET_NAME            — fallback sheet name
 
 If GOOGLE_SERVICE_ACCOUNT_JSON is not set, all functions are no-ops and
 the system falls back to email-only output.
@@ -15,11 +15,20 @@ from datetime import datetime
 
 from .config import SHEET_HEADERS, PROGRAM_DEADLINES, MONITOR_CONFIG
 
-_gc   = None  # gspread client
-_sheet = None  # Log sheet handle
-_fp_sheet = None  # Fingerprints sheet handle
+_gc    = None   # gspread client
+_sheet = None   # Log worksheet handle
+
+# ── Visual constants ───────────────────────────────────────────────────────────
+# Column widths (px) matching SHEET_HEADERS order
+_COL_WIDTHS = [80, 70, 70, 300, 100, 80, 110, 95, 180, 350, 220, 140, 150]
+
+_HEADER_BG  = {"red": 0.10, "green": 0.14, "blue": 0.49}   # dark indigo
+_HEADER_FG  = {"red": 1.0,  "green": 1.0,  "blue": 1.0}
+_URGENT_BG  = {"red": 1.0,  "green": 0.89, "blue": 0.87}   # pale red
+_PROGRAM_BG = {"red": 0.88, "green": 0.97, "blue": 0.89}   # pale green
 
 
+# ── Auth ───────────────────────────────────────────────────────────────────────
 def _client():
     global _gc
     if _gc:
@@ -43,8 +52,103 @@ def _client():
         return None
 
 
+# ── Formatting helpers ─────────────────────────────────────────────────────────
+def _apply_formatting(ss, ws):
+    """Apply column widths, frozen row 1, and conditional formatting."""
+    try:
+        sid = ws.id
+        requests = []
+
+        # Column widths
+        for i, px in enumerate(_COL_WIDTHS):
+            requests.append({
+                "updateDimensionProperties": {
+                    "range": {
+                        "sheetId": sid, "dimension": "COLUMNS",
+                        "startIndex": i, "endIndex": i + 1,
+                    },
+                    "properties": {"pixelSize": px},
+                    "fields": "pixelSize",
+                }
+            })
+
+        # Freeze header row
+        requests.append({
+            "updateSheetProperties": {
+                "properties": {
+                    "sheetId": sid,
+                    "gridProperties": {"frozenRowCount": 1},
+                },
+                "fields": "gridProperties.frozenRowCount",
+            }
+        })
+
+        # Conditional format: URGENT rows → pale red  (=$A2="URGENT")
+        requests.append({
+            "addConditionalFormatRule": {
+                "rule": {
+                    "ranges": [{
+                        "sheetId": sid,
+                        "startRowIndex": 1, "endRowIndex": 5000,
+                        "startColumnIndex": 0, "endColumnIndex": len(SHEET_HEADERS),
+                    }],
+                    "booleanRule": {
+                        "condition": {
+                            "type": "CUSTOM_FORMULA",
+                            "values": [{"userEnteredValue": '=$A2="URGENT"'}],
+                        },
+                        "format": {"backgroundColor": _URGENT_BG},
+                    },
+                },
+                "index": 0,
+            }
+        })
+
+        # Conditional format: Program rows → pale green  (=$C2="TRUE")
+        requests.append({
+            "addConditionalFormatRule": {
+                "rule": {
+                    "ranges": [{
+                        "sheetId": sid,
+                        "startRowIndex": 1, "endRowIndex": 5000,
+                        "startColumnIndex": 0, "endColumnIndex": len(SHEET_HEADERS),
+                    }],
+                    "booleanRule": {
+                        "condition": {
+                            "type": "CUSTOM_FORMULA",
+                            "values": [{"userEnteredValue": '=$C2="TRUE"'}],
+                        },
+                        "format": {"backgroundColor": _PROGRAM_BG},
+                    },
+                },
+                "index": 1,
+            }
+        })
+
+        ss.batch_update({"requests": requests})
+        print("[Sheets] Formatting applied")
+    except Exception as e:
+        print(f"[Sheets] Formatting error (non-fatal): {e}")
+
+
+def _init_header(ws):
+    """Write styled header row."""
+    ws.append_row(SHEET_HEADERS)
+    ws.format("1", {
+        "backgroundColor": _HEADER_BG,
+        "textFormat": {
+            "foregroundColor": _HEADER_FG,
+            "bold": True,
+            "fontSize": 10,
+        },
+        "horizontalAlignment": "CENTER",
+        "verticalAlignment": "MIDDLE",
+    })
+
+
+# ── Sheet access ───────────────────────────────────────────────────────────────
 def get_or_create_sheet():
-    """Return the Log sheet handle, creating spreadsheet/sheet if needed."""
+    """Return the Log worksheet handle, reinitializing headers if schema changed."""
     global _sheet
     if _sheet:
         return _sheet
@@ -57,26 +161,29 @@ def get_or_create_sheet():
     sheet_id   = os.environ.get("GOOGLE_SHEET_ID", "")
     sheet_name = os.environ.get("GOOGLE_SHEET_NAME", MONITOR_CONFIG["SHEET_NAME"])
     try:
-        # Prefer opening by ID (user's own Drive sheet shared with service account)
         if sheet_id:
             ss = gc.open_by_key(sheet_id)
-            print(f"[Sheets] Opened sheet by ID: {sheet_id[:20]}...")
+            print(f"[Sheets] Opened by ID: {sheet_id[:20]}...")
         else:
             ss = gc.open(sheet_name)
 
-        # Save sheet URL for email links
-        sheet_url = ss.url
-        os.environ["GOOGLE_SHEET_URL"] = sheet_url
-        print(f"[Sheets] URL: {sheet_url}")
+        os.environ["GOOGLE_SHEET_URL"] = ss.url
+        print(f"[Sheets] URL: {ss.url}")
 
+        # Get or create Log worksheet
         try:
             ws = ss.worksheet("Log")
+            existing_headers = ws.row_values(1)
+            if existing_headers != SHEET_HEADERS:
+                print("[Sheets] Schema changed — reinitializing Log sheet")
+                ws.clear()
+                _init_header(ws)
+                _apply_formatting(ss, ws)
         except Exception:
             ws = ss.add_worksheet("Log", rows=5000, cols=len(SHEET_HEADERS))
-            ws.append_row(SHEET_HEADERS)
-            ws.format("1", {"backgroundColor": {"red": 0.1, "green": 0.14, "blue": 0.49},
-                            "textFormat": {"foregroundColor": {"red": 1, "green": 1, "blue": 1}, "bold": True}})
-            print("[Sheets] Initialized Log sheet")
+            _init_header(ws)
+            _apply_formatting(ss, ws)
+            print("[Sheets] Created Log sheet")
 
         _sheet = ws
         return ws
@@ -85,24 +192,24 @@ def get_or_create_sheet():
         return None
 
 
+# ── Deduplication ──────────────────────────────────────────────────────────────
 def get_seen_ids(sheet) -> set:
-    """Read all existing Article IDs (col I) and URLs (col H) from sheet."""
+    """Return set of known URLs from col K (index 10) for deduplication."""
     if not sheet:
         return set()
     try:
         all_vals = sheet.get_all_values()
         seen = set()
-        for row in all_vals[1:]:  # skip header
-            if len(row) > 8 and row[8]:
-                seen.add(row[8])   # col I: Item ID
-            if len(row) > 7 and row[7]:
-                seen.add(row[7])   # col H: URL
+        for row in all_vals[1:]:        # skip header
+            if len(row) > 10 and row[10]:
+                seen.add(row[10])       # col K: URL
         return seen
     except Exception as e:
         print(f"[Sheets] get_seen_ids error: {e}")
         return set()
 
 
+# ── Fingerprints (State tab) ───────────────────────────────────────────────────
 def get_fingerprints(sheet) -> dict:
     """Read fingerprints from 'State' tab: {source_id: fingerprint}."""
     if not sheet:
@@ -141,44 +248,58 @@ def save_fingerprints(sheet, fp_store: dict):
         print(f"[Sheets] save_fingerprints error: {e}")
 
 
-def _build_row(article: dict) -> list:
-    is_urgent = article.get("hasDeadline") or any(
-        kw.lower() in " ".join(article.get("keywordsFound", [])).lower()
-        for kw in MONITOR_CONFIG["URGENT_KEYWORDS"]
+# ── Row building & sorting ─────────────────────────────────────────────────────
+def _is_urgent(article: dict) -> bool:
+    kw_text = " ".join(article.get("keywordsFound", [])).lower()
+    return bool(article.get("hasDeadline")) or any(
+        kw.lower() in kw_text for kw in MONITOR_CONFIG["URGENT_KEYWORDS"]
     )
+
+
+def _sort_key(article: dict) -> int:
+    if _is_urgent(article):
+        return 0
+    if article.get("hasProgram"):
+        return 1
+    return 2
+
+
+def _build_row(article: dict) -> list:
+    urgent = _is_urgent(article)
     return [
-        datetime.now().isoformat(),
-        article.get("sourceType", "WeChat"),
-        article.get("accountName", ""),
-        article.get("accountShort", ""),
-        article.get("region", ""),
-        article.get("title", ""),
-        article.get("publishDate", ""),
-        article.get("url", ""),
-        article.get("articleId", ""),
-        (article.get("content") or article.get("digest") or "")[:300],
-        "TRUE" if article.get("hasProgram") else "FALSE",
-        "TRUE" if article.get("hasDeadline") else "FALSE",
-        ", ".join(article.get("keywordsFound") or []),
-        "URGENT" if is_urgent else "NORMAL",
-        article.get("status", "NEW"),
-        "",  # Notes — manual
+        "URGENT" if urgent else "NORMAL",                               # A Priority
+        "TRUE" if article.get("hasDeadline") else "FALSE",             # B Deadline
+        "TRUE" if article.get("hasProgram") else "FALSE",              # C Program
+        article.get("title", ""),                                       # D Title
+        article.get("accountShort", ""),                                # E Source
+        article.get("sourceType", "WeChat"),                            # F Type
+        article.get("region", ""),                                      # G Region
+        article.get("publishDate", ""),                                 # H Date
+        ", ".join(article.get("keywordsFound") or []),                  # I Keywords
+        (article.get("content") or article.get("digest") or "")[:300], # J Preview
+        article.get("url", ""),                                         # K URL
+        datetime.now().strftime("%Y-%m-%d %H:%M"),                      # L Timestamp
+        "",                                                              # M Notes
     ]
 
 
+# ── Write articles ─────────────────────────────────────────────────────────────
 def append_articles(sheet, articles: list) -> int:
+    """Sort (URGENT first) and append articles to Log sheet."""
     if not sheet or not articles:
         return 0
     try:
-        rows = [_build_row(a) for a in articles]
+        sorted_articles = sorted(articles, key=_sort_key)
+        rows = [_build_row(a) for a in sorted_articles]
         sheet.append_rows(rows, value_input_option="RAW")
-        print(f"[Sheets] Wrote {len(rows)} rows")
+        print(f"[Sheets] Wrote {len(rows)} rows ({sum(1 for a in sorted_articles if _sort_key(a) == 0)} urgent)")
         return len(rows)
     except Exception as e:
         print(f"[Sheets] append_articles error: {e}")
         return 0
 
 
+# ── Supporting tabs ────────────────────────────────────────────────────────────
 def update_deadlines_tab(sheet):
     """Refresh 'Deadlines' tab with countdown."""
     if not sheet:
@@ -194,8 +315,7 @@ def update_deadlines_tab(sheet):
         dl.append_row(["Program", "Deadline", "Days Remaining", "URL", "Status", "Notes"])
         today = datetime.now()
         for d in PROGRAM_DEADLINES:
-            from datetime import datetime as dt
-            deadline_date = dt.strptime(d["deadline"], "%Y-%m-%d")
+            deadline_date = datetime.strptime(d["deadline"], "%Y-%m-%d")
             days_left = (deadline_date - today).days
             status = "EXPIRED" if days_left < 0 else ("URGENT" if days_left <= d["days_warn"] else "OK")
             dl.append_row([d["program"], d["deadline"], days_left, d["url"], status, ""])

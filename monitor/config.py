@@ -55,7 +55,7 @@ ACCOUNTS = [
         "keywords": ["华文教师", "研习班", "校长", "通知", "招募", "培训班", "报名", "选拔"],
     },
     {
-        "id": "PENDING", "biz": "",
+        "id": "PENDING", "biz": "MzIxMjg4NDY4Ng==",
         "name": "暨南大学华文学院", "short": "JNU",
         "region": "China", "status": "PENDING", "priority": "HIGH",
         "programs": ["寻根之旅", "华裔青少年夏令营"],
@@ -123,8 +123,8 @@ WEBSITE_SOURCES = [
     # Elite universities
     {"id": "WEB_THU_GSS", "name": "清华全球暑期学校",     "short": "THU-GSS",   "region": "China",         "category": "elite_university", "url": "https://www.tsinghua.edu.cn/gss/Latest_News.htm"},
     {"id": "WEB_THU_AI",  "name": "清华GenAI暑期学校",   "short": "THU-AI",    "region": "China",         "category": "elite_university", "url": "https://ss.cs.tsinghua.edu.cn/"},
-    {"id": "WEB_WLU",     "name": "西湖大学国际科学营",   "short": "WLU-WEB",   "region": "China",         "category": "elite_university", "url": "https://www.westlake.edu.cn/academics/School_of_Science/summerprogram/"},
-    {"id": "WEB_XJTLU",   "name": "XJTLU AI高中营",      "short": "XJTLU-WEB", "region": "China",         "category": "joint_intl",    "url": "https://www.xjtlu.edu.cn/en/study/programmes/high-school-programmes"},
+    {"id": "WEB_WLU",     "name": "西湖大学国际科学营",   "short": "WLU-WEB",   "region": "China",         "category": "elite_university", "url": "https://en.westlake.edu.cn/admissions/summer_sessions/international_science_summer_school/"},
+    {"id": "WEB_XJTLU",   "name": "XJTLU AI高中营",      "short": "XJTLU-WEB", "region": "China",         "category": "joint_intl",    "url": "https://www.xjtlu.edu.cn/en/learning-mall/learning-resources/xjtlu-high-school-summer-camp"},
     {"id": "WEB_NPU",     "name": "西北工业大学国际夏令营","short": "NPU-WEB",   "region": "China",         "category": "elite_university", "url": "https://npuinternationalcollege.nwpu.edu.cn/info/1146/11168.htm"},
     # Overseas
     {"id": "WEB_CAYAUS",  "name": "全美华裔青少年协会",   "short": "CAYAUS-WEB","region": "North America", "category": "diaspora",      "url": "https://zh.cayaus.org/%E5%AE%9E%E5%9C%B0%E5%A4%8F%E4%BB%A4%E8%90%A5"},
@@ -141,8 +141,8 @@ PROGRAM_DEADLINES = [
     {"program": "AI华文教育培训班 (P006)",          "deadline": "2026-06-30", "days_warn": 14, "url": "https://mp.weixin.qq.com/s/4hnWcECgsNKcfPfUc2Gb9w"},
     {"program": "华文教师研习班 (P003) — Canada",   "deadline": "2026-05-31", "days_warn": 7,  "url": "https://mp.weixin.qq.com/s/rdvA_QyvbB43lXlCuWlEmg"},
     {"program": "清华全球暑期学校 2026",             "deadline": "2026-06-15", "days_warn": 14, "url": "https://www.tsinghua.edu.cn/gss/Latest_News.htm"},
-    {"program": "XJTLU AI高中营 2026",              "deadline": "2026-07-01", "days_warn": 14, "url": "https://www.xjtlu.edu.cn/en/study/programmes/high-school-programmes"},
-    {"program": "西湖大学国际科学营 2026",           "deadline": "2026-06-20", "days_warn": 14, "url": "https://www.westlake.edu.cn/academics/School_of_Science/summerprogram/"},
+    {"program": "XJTLU AI高中营 2026",              "deadline": "2026-07-01", "days_warn": 14, "url": "https://www.xjtlu.edu.cn/en/learning-mall/learning-resources/xjtlu-high-school-summer-camp"},
+    {"program": "西湖大学国际科学营 2026",           "deadline": "2026-06-20", "days_warn": 14, "url": "https://en.westlake.edu.cn/admissions/summer_sessions/international_science_summer_school/"},
 ]
 
 # ── Keyword sets ───────────────────────────────────────────────────────────────
@@ -159,7 +159,17 @@ DEADLINE_KEYWORDS = [
 ]
 
 SHEET_HEADERS = [
-    "Timestamp", "Source Type", "Account/Source", "Short Name", "Region",
-    "Article/Page Title", "Publish Date", "URL", "Item ID", "Content Preview",
-    "Has Program", "Has Deadline", "Keywords Found", "Priority", "Status", "Notes",
+    "Priority",        # A — URGENT / NORMAL (hiển thị đầu tiên)
+    "Deadline",        # B — TRUE/FALSE
+    "Program",         # C — TRUE/FALSE
+    "Title",           # D — tên bài / trang
+    "Source",          # E — tên ngắn tổ chức
+    "Type",            # F — WeChat / Website / Sogou
+    "Region",          # G — khu vực
+    "Date",            # H — ngày đăng
+    "Keywords",        # I — từ khóa khớp
+    "Preview",         # J — tóm tắt nội dung
+    "URL",             # K — link gốc
+    "Timestamp",       # L — thời điểm ghi
+    "Notes",           # M — ghi chú thủ công
 ]

@@ -3,7 +3,7 @@ monitor/wechat.py — WeChat account monitoring.
 Python port of WeChat.gs + Sogou fallback.
 """
 
-import re, time, json, hashlib
+import os, re, time, json, hashlib
 from datetime import datetime
 from urllib.parse import quote, unquote
 
@@ -15,10 +15,17 @@ from .config import MONITOR_CONFIG, PROGRAM_KEYWORDS, DEADLINE_KEYWORDS
 def _session():
     s = requests.Session()
     s.headers.update({
-        "User-Agent": MONITOR_CONFIG["MOBILE_UA"],
-        "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+        "User-Agent":      MONITOR_CONFIG["MOBILE_UA"],
+        "Accept":          "text/html,application/xhtml+xml,*/*;q=0.8",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Referer":         "https://mp.weixin.qq.com/",
     })
+    cookie = os.environ.get("WECHAT_COOKIE", "")
+    if cookie:
+        s.headers["Cookie"] = cookie
+        print("[WeChat] Cookie loaded — authenticated mode")
+    else:
+        print("[WeChat] No cookie — anonymous mode (BIZ API may fail)")
     return s
 
 

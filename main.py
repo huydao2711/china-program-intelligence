@@ -9,8 +9,13 @@ Every day:
   - Send daily digest email
 
 Every Sunday additionally:
+  - Run programs crawl across 67 sources → Programs sheet
   - Run deep intelligence pipeline (Baidu, Zhihu, XHS, University)
   - Send weekly analysis report
+
+CLI flags:
+  --crawl   Run programs crawl only (skip daily monitor)
+  --test    Crawl first 5 sources only (for quick tests)
 """
 
 import sys, os, time
@@ -101,7 +106,21 @@ def run_daily_monitor() -> dict:
     return summary
 
 
-# ── PHASE 2: Weekly Intelligence (Sundays only) ───────────────────────────────
+# ── PHASE 2: Programs Crawl (Sundays) ────────────────────────────────────────
+
+def run_programs_crawl(test_mode: bool = False) -> dict:
+    log("=== PROGRAMS CRAWL START ===")
+    try:
+        from crawl.runner import run as crawl_run
+        programs = crawl_run(test_mode=test_mode)
+        log(f"=== PROGRAMS CRAWL END — {len(programs)} programs found ===")
+        return {"programs_found": len(programs)}
+    except Exception as e:
+        log(f"Programs crawl failed: {e}")
+        return {"error": str(e)}
+
+
+# ── PHASE 3: Weekly Intelligence (Sundays only) ───────────────────────────────
 
 def run_weekly_intelligence() -> dict:
     log("=== WEEKLY INTELLIGENCE START ===")
@@ -118,17 +137,26 @@ def run_weekly_intelligence() -> dict:
 # ── Entry Point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    args = sys.argv[1:]
+    crawl_only = "--crawl" in args
+    test_mode  = "--test"  in args
     today = datetime.now()
     is_sunday = today.weekday() == 6
 
-    # Always run daily monitor
-    monitor_result = run_daily_monitor()
-
-    # Run deep analysis on Sundays
-    if is_sunday:
-        log("Sunday — running weekly intelligence pipeline")
-        run_weekly_intelligence()
+    if crawl_only:
+        # railway run python main.py --crawl [--test]
+        run_programs_crawl(test_mode=test_mode)
     else:
-        log(f"Not Sunday ({today.strftime('%A')}) — skipping intelligence pipeline")
+        # Always run daily monitor
+        monitor_result = run_daily_monitor()
+
+        # Run programs crawl + deep analysis on Sundays
+        if is_sunday:
+            log("Sunday — running programs crawl")
+            run_programs_crawl(test_mode=False)
+            log("Sunday — running weekly intelligence pipeline")
+            run_weekly_intelligence()
+        else:
+            log(f"Not Sunday ({today.strftime('%A')}) — skipping crawl & intelligence pipeline")
 
     log("All done.")

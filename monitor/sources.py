@@ -3,7 +3,7 @@ monitor/sources.py — Website + Sogou source crawling.
 Python port of Sources.gs
 """
 
-import re, time, hashlib
+import os, re, time, hashlib
 from datetime import datetime
 from urllib.parse import unquote, quote
 
@@ -12,19 +12,33 @@ import requests
 from .config import WEBSITE_SOURCES, PROGRAM_KEYWORDS, DEADLINE_KEYWORDS, MONITOR_CONFIG
 
 
-def _get(url: str, desktop: bool = True) -> str | None:
+def _get(url: str, desktop: bool = True, retries: int = 3) -> str | None:
     ua = MONITOR_CONFIG["DESKTOP_UA"] if desktop else MONITOR_CONFIG["MOBILE_UA"]
-    try:
-        resp = requests.get(url, headers={
-            "User-Agent": ua,
-            "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        }, timeout=15, allow_redirects=True)
-        if resp.status_code == 200:
-            return resp.text
-        print(f"[Sources] HTTP {resp.status_code}: {url[:70]}")
-    except Exception as e:
-        print(f"[Sources] Fetch error {url[:60]}: {e}")
+    headers = {
+        "User-Agent": ua,
+        "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    }
+    cookie = os.environ.get("WECHAT_COOKIE", "")
+    if cookie and "sogou.com" in url:
+        headers["Cookie"] = cookie
+
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, headers=headers, timeout=25, allow_redirects=True)
+            if resp.status_code == 200:
+                return resp.text
+            print(f"[Sources] HTTP {resp.status_code}: {url[:70]}")
+            return None
+        except requests.exceptions.Timeout:
+            if attempt < retries - 1:
+                print(f"[Sources] Timeout {url[:50]} — retry {attempt + 1}/{retries - 1}")
+                time.sleep(5)
+            else:
+                print(f"[Sources] Timeout {url[:50]} — giving up after {retries} attempts")
+        except Exception as e:
+            print(f"[Sources] Fetch error {url[:60]}: {e}")
+            return None
     return None
 
 
