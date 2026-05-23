@@ -213,9 +213,9 @@ def fetch_all_accounts(seen_ids: set) -> list:
                     if detail["publishDate"]:
                         art["publishDate"] = detail["publishDate"]
                     art["content"]       = detail["content"]
-                    art["hasProgram"]    = detail["has_program"]
-                    art["hasDeadline"]   = detail["has_deadline"]
-                    art["keywordsFound"] = detail["keywords_found"]
+                    art["hasProgram"]    = detail["hasProgram"]
+                    art["hasDeadline"]   = detail["hasDeadline"]
+                    art["keywordsFound"] = detail["keywordsFound"]
                     time.sleep(1.0)
 
                 all_new.append(art)

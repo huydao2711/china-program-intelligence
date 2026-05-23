@@ -65,7 +65,8 @@ def get_sheet():
         "https://www.googleapis.com/auth/drive",
     ])
     gc = gspread.authorize(creds)
-    ss = gc.open_by_key("1o7NL2nPmJ8g1w7XeWscEwP62wbWbe7W6eBJ00LQWZRk")
+    sheet_id = os.environ.get("GOOGLE_SHEET_ID", "1o7NL2nPmJ8g1w7XeWscEwP62wbWbe7W6eBJ00LQWZRk")
+    ss = gc.open_by_key(sheet_id)
     try:
         ws = ss.worksheet("Programs")
     except Exception:
@@ -149,7 +150,7 @@ def run(test_mode: bool = False):
     if failed_sources and not test_mode:
         print(f"\n--- Final retry: {len(failed_sources)} sources ---\n")
         time.sleep(60)
-        _run_pass(failed_sources, "P3")
+        failed_sources = _run_pass(failed_sources, "P3")
 
     print("\n" + "=" * 65)
     print(f"DONE: {len(all_programs)} programs from {len(sources)} sources")
