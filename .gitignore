@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+extracted_data/
+logs/
+reports/
+visualizations/
+ecosystem_mapping/
+predictions/
+archives/
+university_db/
+program_db/
+social_analysis/
