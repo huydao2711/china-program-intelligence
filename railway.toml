@@ -2,8 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-# Runs weekly on Sunday at 7:00 AM Vietnam time (UTC+7 → 00:00 UTC Sunday)
-# Format: minute hour day-of-month month day-of-week
-cronSchedule = "0 0 * * 0"
-startCommand = "python orchestrator.py --full"
+# Daily 7:00 AM Vietnam time = 00:00 UTC (UTC+7)
+cronSchedule = "0 0 * * *"
+startCommand = "python main.py"
 restartPolicyType = "NEVER"
