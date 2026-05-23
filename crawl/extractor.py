@@ -1,7 +1,7 @@
 """
 crawl/extractor.py — Use Gemini to extract program info from raw webpage text.
 """
-import os, json, re
+import os, json, re, time
 import requests
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -93,13 +93,32 @@ def extract_programs(text: str, source_url: str, source_name: str) -> list:
         }
     }
 
+    for attempt in range(5):
+        try:
+            resp = requests.post(
+                f"{GEMINI_URL}?key={api_key}",
+                json=payload,
+                timeout=60,
+            )
+            if resp.status_code == 503:
+                wait = 15 * (2 ** attempt)
+                print(f"[Extractor] Gemini 503 — retry {attempt+1}/5 in {wait}s")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            break
+        except requests.exceptions.Timeout:
+            wait = 15 * (2 ** attempt)
+            print(f"[Extractor] Timeout — retry {attempt+1}/5 in {wait}s")
+            time.sleep(wait)
+        except Exception as e:
+            print(f"[Extractor] Error: {e}")
+            return []
+    else:
+        print("[Extractor] Gemini unavailable after 5 retries")
+        return []
+
     try:
-        resp = requests.post(
-            f"{GEMINI_URL}?key={api_key}",
-            json=payload,
-            timeout=45,
-        )
-        resp.raise_for_status()
         raw = resp.json()
         content = raw["candidates"][0]["content"]["parts"][0]["text"]
 

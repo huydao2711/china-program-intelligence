@@ -92,8 +92,7 @@ def crawl_source(source: dict) -> list[dict]:
 
     html = _get(source["url"])
     if not html:
-        print("  Skipped — no response")
-        return []
+        raise ConnectionError(f"No response from {source['url']}")
 
     text = _strip_html(html)
     if len(text) < 200:
@@ -119,25 +118,42 @@ def run(test_mode: bool = False):
     print(f"Sources: {len(sources)} | Test mode: {test_mode}\n")
 
     all_programs = []
-    errors = []
+    failed_sources = []
 
-    for i, source in enumerate(sources, 1):
-        print(f"[{i}/{len(sources)}]", end=" ")
-        try:
-            programs = crawl_source(source)
-            all_programs.extend(programs)
-            if ws and programs:
-                written = write_to_sheet(ws, programs)
-                print(f"  -> Wrote {written} rows to Sheet")
-        except Exception as e:
-            print(f"  ERROR: {e}")
-            errors.append(source["id"])
-        time.sleep(2)
+    def _run_pass(source_list: list, pass_label: str):
+        still_failed = []
+        for i, source in enumerate(source_list, 1):
+            print(f"[{pass_label} {i}/{len(source_list)}]", end=" ")
+            try:
+                programs = crawl_source(source)
+                all_programs.extend(programs)
+                if ws and programs:
+                    written = write_to_sheet(ws, programs)
+                    print(f"  -> Wrote {written} rows to Sheet")
+            except Exception as e:
+                print(f"  ERROR: {e}")
+                still_failed.append(source)
+            time.sleep(3)
+        return still_failed
+
+    # Pass 1: all sources
+    failed_sources = _run_pass(sources, "P1")
+
+    # Pass 2: retry sources that had no response (skip ones that returned 0 programs normally)
+    if failed_sources and not test_mode:
+        print(f"\n--- Retry pass: {len(failed_sources)} failed sources ---\n")
+        time.sleep(30)
+        failed_sources = _run_pass(failed_sources, "P2")
+
+    # Pass 3: final retry
+    if failed_sources and not test_mode:
+        print(f"\n--- Final retry: {len(failed_sources)} sources ---\n")
+        time.sleep(60)
+        _run_pass(failed_sources, "P3")
 
     print("\n" + "=" * 65)
-    print(f"DONE: {len(all_programs)} programs extracted from {len(sources)} sources")
-    if errors:
-        print(f"Errors on: {errors}")
+    print(f"DONE: {len(all_programs)} programs from {len(sources)} sources")
+    print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("=" * 65)
     return all_programs
 
