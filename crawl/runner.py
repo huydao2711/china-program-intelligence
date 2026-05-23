@@ -155,7 +155,41 @@ def run(test_mode: bool = False):
     print(f"DONE: {len(all_programs)} programs from {len(sources)} sources")
     print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("=" * 65)
+
+    _send_crawl_done_email(len(all_programs), len(sources), len(failed_sources) if failed_sources else 0)
     return all_programs
+
+
+def _send_crawl_done_email(total_programs: int, total_sources: int, remaining_failed: int):
+    import smtplib
+    from email.mime.text import MIMEText
+    user  = os.environ.get("GMAIL_USER", "")
+    pw    = os.environ.get("GMAIL_APP_PASSWORD", "")
+    notify = os.environ.get("NOTIFY_EMAIL", user)
+    if not user or not pw:
+        return
+    sheet_id = os.environ.get("GOOGLE_SHEET_ID", "")
+    sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}" if sheet_id else ""
+    body = (
+        f"Programs crawl COMPLETE\n\n"
+        f"Total programs extracted : {total_programs}\n"
+        f"Sources processed        : {total_sources}\n"
+        f"Sources still failed     : {remaining_failed}\n"
+        f"Finished at              : {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}\n"
+    )
+    if sheet_url:
+        body += f"\nView Programs sheet:\n{sheet_url}\n"
+    msg = MIMEText(body)
+    msg["Subject"] = f"[China Programs] Crawl done — {total_programs} programs found"
+    msg["From"]    = user
+    msg["To"]      = notify
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as s:
+            s.login(user, pw)
+            s.sendmail(user, [notify], msg.as_string())
+        print(f"[Crawl] Done email sent to {notify}")
+    except Exception as e:
+        print(f"[Crawl] Email error: {e}")
 
 
 if __name__ == "__main__":

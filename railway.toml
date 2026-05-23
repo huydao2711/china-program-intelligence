@@ -2,7 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-# Daily 7:00 AM Vietnam time = 00:00 UTC (UTC+7)
-cronSchedule = "0 0 * * *"
-startCommand = "python main.py"
+# ONE-SHOT: crawl all 67 sources now, then exit.
+# After crawl is done, this will be restored to daily cron mode.
+startCommand = "python main.py --crawl"
 restartPolicyType = "NEVER"
