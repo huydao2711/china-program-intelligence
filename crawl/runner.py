@@ -120,6 +120,7 @@ def run(test_mode: bool = False):
 
     all_programs = []
     failed_sources = []
+    sources_done = [0]   # mutable counter accessible inside nested fn
 
     def _run_pass(source_list: list, pass_label: str):
         still_failed = []
@@ -134,6 +135,12 @@ def run(test_mode: bool = False):
             except Exception as e:
                 print(f"  ERROR: {e}")
                 still_failed.append(source)
+
+            sources_done[0] += 1
+            # Notify every 20 sources processed
+            if not test_mode and sources_done[0] % 20 == 0:
+                _send_progress_email(sources_done[0], len(sources), len(all_programs))
+
             time.sleep(3)
         return still_failed
 
@@ -159,6 +166,38 @@ def run(test_mode: bool = False):
 
     _send_crawl_done_email(len(all_programs), len(sources), len(failed_sources) if failed_sources else 0)
     return all_programs
+
+
+def _send_progress_email(done: int, total: int, programs_so_far: int):
+    import smtplib
+    from email.mime.text import MIMEText
+    user   = os.environ.get("GMAIL_USER", "")
+    pw     = os.environ.get("GMAIL_APP_PASSWORD", "")
+    notify = os.environ.get("NOTIFY_EMAIL", user)
+    if not user or not pw:
+        return
+    sheet_id  = os.environ.get("GOOGLE_SHEET_ID", "")
+    sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}" if sheet_id else ""
+    body = (
+        f"[China Programs] Crawl progress update\n\n"
+        f"Sources done : {done} / {total}\n"
+        f"Programs found so far : {programs_so_far}\n"
+        f"Time : {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}\n"
+    )
+    if sheet_url:
+        body += f"\nSheet: {sheet_url}\n"
+    msg = MIMEText(body)
+    msg["Subject"] = f"[Crawl] {done}/{total} nguồn xong — {programs_so_far} programs"
+    msg["From"]    = user
+    msg["To"]      = notify
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as s:
+            s.starttls()
+            s.login(user, pw)
+            s.sendmail(user, [notify], msg.as_string())
+        print(f"[Crawl] Progress email sent ({done}/{total})")
+    except Exception as e:
+        print(f"[Crawl] Progress email error: {e}")
 
 
 def _send_crawl_done_email(total_programs: int, total_sources: int, remaining_failed: int):
