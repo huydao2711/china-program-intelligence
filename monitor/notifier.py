@@ -196,7 +196,8 @@ def send_daily_digest(articles: list, sheet_url: str = "") -> bool:
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+            server.starttls()
             server.login(gmail_user, gmail_pass)
             server.sendmail(gmail_user, notify_to, msg.as_string())
         print(f"[Notifier] Daily digest sent to {notify_to}")
@@ -242,7 +243,8 @@ def send_urgent_alert(article: dict) -> bool:
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+            server.starttls()
             server.login(gmail_user, gmail_pass)
             server.sendmail(gmail_user, notify_to, msg.as_string())
         return True

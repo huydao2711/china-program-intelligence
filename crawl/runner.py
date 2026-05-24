@@ -185,7 +185,8 @@ def _send_crawl_done_email(total_programs: int, total_sources: int, remaining_fa
     msg["From"]    = user
     msg["To"]      = notify
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as s:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as s:
+            s.starttls()
             s.login(user, pw)
             s.sendmail(user, [notify], msg.as_string())
         print(f"[Crawl] Done email sent to {notify}")
