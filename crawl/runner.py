@@ -135,16 +135,48 @@ def write_to_sheet(ws, programs: list[dict], existing_keys: set) -> int:
         return 0
 
 
+def _get_reddit_text(url: str) -> str | None:
+    """Fetch Reddit JSON API and convert posts to readable text."""
+    try:
+        resp = requests.get(url, headers={
+            "User-Agent": "china-program-bot/1.0",
+            "Accept": "application/json",
+        }, timeout=20)
+        if resp.status_code != 200:
+            print(f"  HTTP {resp.status_code}: {url[:60]}")
+            return None
+        data = resp.json()
+        posts = data.get("data", {}).get("children", [])
+        if not posts:
+            return None
+        lines = []
+        for p in posts:
+            d = p.get("data", {})
+            title = d.get("title", "")
+            body  = d.get("selftext", "")[:300]
+            sub   = d.get("subreddit_name_prefixed", "")
+            lines.append(f"[{sub}] {title}\n{body}")
+        return "\n\n".join(lines)
+    except Exception as e:
+        print(f"  Reddit error: {e}")
+        return None
+
+
 def crawl_source(source: dict) -> list[dict]:
     print(f"\n[{source['id']}] {source['name']}")
     print(f"  URL: {source['url']}")
 
-    html = _get(source["url"])
-    if not html:
-        raise ConnectionError(f"No response from {source['url']}")
+    src_type = source.get("type", "html")
 
-    text = _strip_html(html)
-    if len(text) < 200:
+    if src_type == "reddit":
+        text = _get_reddit_text(source["url"])
+    else:
+        html = _get(source["url"])
+        if not html:
+            raise ConnectionError(f"No response from {source['url']}")
+        text = _strip_html(html)
+
+    if not text or len(text) < 200:
         print("  Skipped — too little text")
         return []
 
