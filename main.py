@@ -138,7 +138,9 @@ def run_weekly_intelligence() -> dict:
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    crawl_only = "--crawl" in args
+    # RUN_MODE=crawl env var is the Railway-safe way to force crawl mode
+    # (Railway dashboard startCommand may strip CLI flags on re-deploy)
+    crawl_only = "--crawl" in args or os.environ.get("RUN_MODE") == "crawl"
     test_mode  = "--test"  in args
     today = datetime.now()
     is_sunday = today.weekday() == 6
