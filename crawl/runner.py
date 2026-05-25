@@ -263,9 +263,6 @@ def run(test_mode: bool = False):
                 still_failed.append(source)
 
             sources_done[0] += 1
-            # Only send progress email if new programs were actually written
-            if not test_mode and sources_done[0] % 20 == 0 and newly_written[0] > 0:
-                _send_progress_email(sources_done[0], len(sources), newly_written[0])
 
             time.sleep(3)
         return still_failed
