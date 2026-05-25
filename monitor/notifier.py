@@ -3,10 +3,8 @@ monitor/notifier.py — HTML email digest for daily monitor results.
 Python port of Email.gs
 """
 
-import os, smtplib
+import os
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from .config import PROGRAM_DEADLINES, MONITOR_CONFIG
 
@@ -70,14 +68,6 @@ def _article_card(a: dict) -> str:
 
 
 def send_daily_digest(articles: list, sheet_url: str = "") -> bool:
-    gmail_user = os.environ.get("GMAIL_USER", "")
-    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
-    notify_to  = os.environ.get("NOTIFY_EMAIL", gmail_user)
-
-    if not gmail_user or not gmail_pass:
-        print("[Notifier] Email not configured — skipping digest")
-        return False
-
     now = datetime.now()
     urgent    = [a for a in articles if a.get("hasDeadline")]
     normal    = [a for a in articles if not a.get("hasDeadline")]
@@ -189,32 +179,13 @@ def send_daily_digest(articles: list, sheet_url: str = "") -> bool:
         + (f" · {len(urgent)} URGENT" if urgent else "")
     )
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = gmail_user
-    msg["To"]      = notify_to
-    msg.attach(MIMEText(html, "html", "utf-8"))
-
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
-            server.starttls()
-            server.login(gmail_user, gmail_pass)
-            server.sendmail(gmail_user, notify_to, msg.as_string())
-        print(f"[Notifier] Daily digest sent to {notify_to}")
-        return True
-    except Exception as e:
-        print(f"[Notifier] Email failed: {e}")
-        return False
+    import sys as _sys, os as _os
+    _sys.path.insert(0, _os.path.dirname(_os.path.dirname(__file__)))
+    from email_util import send_email
+    return send_email(subject, body_html=html)
 
 
 def send_urgent_alert(article: dict) -> bool:
-    gmail_user = os.environ.get("GMAIL_USER", "")
-    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
-    notify_to  = os.environ.get("NOTIFY_EMAIL", gmail_user)
-
-    if not gmail_user or not gmail_pass:
-        return False
-
     html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="font-family:Arial,sans-serif;max-width:560px;margin:20px auto;">
   <div style="background:#c62828;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0;">
@@ -236,18 +207,7 @@ def send_urgent_alert(article: dict) -> bool:
   </div>
 </body></html>"""
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"[URGENT] {article.get('title','')[:60]}"
-    msg["From"]    = gmail_user
-    msg["To"]      = notify_to
-    msg.attach(MIMEText(html, "html", "utf-8"))
-
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
-            server.starttls()
-            server.login(gmail_user, gmail_pass)
-            server.sendmail(gmail_user, notify_to, msg.as_string())
-        return True
-    except Exception as e:
-        print(f"[Notifier] Urgent alert failed: {e}")
-        return False
+    import sys as _sys, os as _os
+    _sys.path.insert(0, _os.path.dirname(_os.path.dirname(__file__)))
+    from email_util import send_email
+    return send_email(f"[URGENT] {article.get('title','')[:60]}", body_html=html)

@@ -218,13 +218,7 @@ def run(test_mode: bool = False):
 
 
 def _send_progress_email(done: int, total: int, programs_so_far: int):
-    import smtplib
-    from email.mime.text import MIMEText
-    user   = os.environ.get("GMAIL_USER", "")
-    pw     = os.environ.get("GMAIL_APP_PASSWORD", "")
-    notify = os.environ.get("NOTIFY_EMAIL", user)
-    if not user or not pw:
-        return
+    from email_util import send_email
     sheet_id  = os.environ.get("GOOGLE_SHEET_ID", "")
     sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}" if sheet_id else ""
     body = (
@@ -235,28 +229,11 @@ def _send_progress_email(done: int, total: int, programs_so_far: int):
     )
     if sheet_url:
         body += f"\nSheet: {sheet_url}\n"
-    msg = MIMEText(body)
-    msg["Subject"] = f"[Crawl] {done}/{total} nguồn xong — {programs_so_far} programs"
-    msg["From"]    = user
-    msg["To"]      = notify
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as s:
-            s.starttls()
-            s.login(user, pw)
-            s.sendmail(user, [notify], msg.as_string())
-        print(f"[Crawl] Progress email sent ({done}/{total})")
-    except Exception as e:
-        print(f"[Crawl] Progress email error: {e}")
+    send_email(f"[Crawl] {done}/{total} nguồn xong — {programs_so_far} programs", body_text=body)
 
 
 def _send_crawl_done_email(total_programs: int, total_sources: int, remaining_failed: int):
-    import smtplib
-    from email.mime.text import MIMEText
-    user  = os.environ.get("GMAIL_USER", "")
-    pw    = os.environ.get("GMAIL_APP_PASSWORD", "")
-    notify = os.environ.get("NOTIFY_EMAIL", user)
-    if not user or not pw:
-        return
+    from email_util import send_email
     sheet_id = os.environ.get("GOOGLE_SHEET_ID", "")
     sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}" if sheet_id else ""
     body = (
@@ -268,18 +245,7 @@ def _send_crawl_done_email(total_programs: int, total_sources: int, remaining_fa
     )
     if sheet_url:
         body += f"\nView Programs sheet:\n{sheet_url}\n"
-    msg = MIMEText(body)
-    msg["Subject"] = f"[China Programs] Crawl done — {total_programs} programs found"
-    msg["From"]    = user
-    msg["To"]      = notify
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as s:
-            s.starttls()
-            s.login(user, pw)
-            s.sendmail(user, [notify], msg.as_string())
-        print(f"[Crawl] Done email sent to {notify}")
-    except Exception as e:
-        print(f"[Crawl] Email error: {e}")
+    send_email(f"[China Programs] Crawl done — {total_programs} programs found", body_text=body)
 
 
 if __name__ == "__main__":
