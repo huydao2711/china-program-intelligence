@@ -169,7 +169,8 @@ def run(test_mode: bool = False):
 
     all_programs = []
     failed_sources = []
-    sources_done = [0]   # mutable counter accessible inside nested fn
+    sources_done = [0]
+    newly_written = [0]  # tracks only rows actually written (not deduped)
 
     def _run_pass(source_list: list, pass_label: str):
         still_failed = []
@@ -180,15 +181,16 @@ def run(test_mode: bool = False):
                 all_programs.extend(programs)
                 if ws and programs:
                     written = write_to_sheet(ws, programs, existing_keys)
+                    newly_written[0] += written
                     print(f"  -> Wrote {written} rows to Sheet")
             except Exception as e:
                 print(f"  ERROR: {e}")
                 still_failed.append(source)
 
             sources_done[0] += 1
-            # Notify every 20 sources processed
-            if not test_mode and sources_done[0] % 20 == 0:
-                _send_progress_email(sources_done[0], len(sources), len(all_programs))
+            # Only send progress email if new programs were actually written
+            if not test_mode and sources_done[0] % 20 == 0 and newly_written[0] > 0:
+                _send_progress_email(sources_done[0], len(sources), newly_written[0])
 
             time.sleep(3)
         return still_failed
@@ -196,7 +198,7 @@ def run(test_mode: bool = False):
     # Pass 1: all sources
     failed_sources = _run_pass(sources, "P1")
 
-    # Pass 2: retry sources that had no response (skip ones that returned 0 programs normally)
+    # Pass 2: retry sources that had no response
     if failed_sources and not test_mode:
         print(f"\n--- Retry pass: {len(failed_sources)} failed sources ---\n")
         time.sleep(30)
@@ -209,11 +211,15 @@ def run(test_mode: bool = False):
         failed_sources = _run_pass(failed_sources, "P3")
 
     print("\n" + "=" * 65)
-    print(f"DONE: {len(all_programs)} programs from {len(sources)} sources")
+    print(f"DONE: {len(all_programs)} programs found | {newly_written[0]} new written to Sheet")
     print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("=" * 65)
 
-    _send_crawl_done_email(len(all_programs), len(sources), len(failed_sources) if failed_sources else 0)
+    # Only send done email if new programs were actually written
+    if newly_written[0] > 0:
+        _send_crawl_done_email(newly_written[0], len(sources), len(failed_sources) if failed_sources else 0)
+    else:
+        print("[Crawl] No new programs — skipping email")
     return all_programs
 
 
