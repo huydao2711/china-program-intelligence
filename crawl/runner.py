@@ -135,6 +135,49 @@ def write_to_sheet(ws, programs: list[dict], existing_keys: set) -> int:
         return 0
 
 
+def _get_set_crawl_log(ws, newly_written: int) -> tuple[int, bool]:
+    """
+    Accumulate newly_written per 2-hour window in 'Crawl Log' tab.
+    Returns (window_total, should_send_email).
+    Email triggers at the start of the next window if previous window had new programs.
+    """
+    if not ws:
+        return newly_written, newly_written > 0
+    try:
+        ss = ws.spreadsheet
+        now = datetime.now()
+        current_window = (now.hour // 2) * 2  # 0,2,4,6,...,22
+        try:
+            cl = ss.worksheet("Crawl Log")
+        except Exception:
+            cl = ss.add_worksheet("Crawl Log", rows=5, cols=3)
+            cl.append_row(["window_hour", "count", "updated"])
+            cl.append_row([str(current_window), str(newly_written), now.isoformat()])
+            return newly_written, False
+
+        rows = cl.get_all_values()
+        if len(rows) < 2 or not rows[1][0]:
+            cl.update("A1:C1", [["window_hour", "count", "updated"]])
+            cl.update("A2:C2", [[str(current_window), str(newly_written), now.isoformat()]])
+            return newly_written, False
+
+        stored_window = int(rows[1][0])
+        stored_count  = int(rows[1][1] or 0)
+
+        if stored_window == current_window:
+            # Same 2h window — accumulate, don't email yet
+            new_total = stored_count + newly_written
+            cl.update("B2:C2", [[str(new_total), now.isoformat()]])
+            return new_total, False
+        else:
+            # New 2h window started — report previous window, reset counter
+            cl.update("A2:C2", [[str(current_window), str(newly_written), now.isoformat()]])
+            return stored_count, stored_count > 0
+    except Exception as e:
+        print(f"[Sheet] crawl_log error: {e}")
+        return newly_written, newly_written > 0
+
+
 def _get_reddit_text(url: str) -> str | None:
     """Fetch Reddit JSON API and convert posts to readable text."""
     try:
@@ -247,11 +290,14 @@ def run(test_mode: bool = False):
     print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("=" * 65)
 
-    # Only send done email if new programs were actually written
-    if newly_written[0] > 0:
-        _send_crawl_done_email(newly_written[0], len(sources), len(failed_sources) if failed_sources else 0)
+    # 2-hour email batching: accumulate in Sheet, send once per 2h window
+    window_total, send_now = _get_set_crawl_log(ws, newly_written[0])
+    if send_now:
+        _send_crawl_done_email(window_total, len(sources), len(failed_sources) if failed_sources else 0)
+    elif newly_written[0] > 0:
+        print(f"[Crawl] Buffered {newly_written[0]} new — window total: {window_total} (email at next 2h mark)")
     else:
-        print("[Crawl] No new programs — skipping email")
+        print("[Crawl] No new programs this run")
     return all_programs
 
 
@@ -272,18 +318,20 @@ def _send_progress_email(done: int, total: int, programs_so_far: int):
 
 def _send_crawl_done_email(total_programs: int, total_sources: int, remaining_failed: int):
     from email_util import send_email
-    sheet_id = os.environ.get("GOOGLE_SHEET_ID", "")
+    now = datetime.now()
+    window_start = (now.hour // 2) * 2
+    sheet_id  = os.environ.get("GOOGLE_SHEET_ID", "")
     sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}" if sheet_id else ""
     body = (
-        f"Programs crawl COMPLETE\n\n"
-        f"Total programs extracted : {total_programs}\n"
-        f"Sources processed        : {total_sources}\n"
-        f"Sources still failed     : {remaining_failed}\n"
-        f"Finished at              : {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}\n"
+        f"[2-hour summary] {now.strftime('%Y-%m-%d')} {window_start:02d}:00–{(window_start+2)%24:02d}:00 UTC\n\n"
+        f"New programs added  : {total_programs}\n"
+        f"Sources crawled     : {total_sources}\n"
+        f"Sources failed      : {remaining_failed}\n"
+        f"Report sent at      : {now.strftime('%H:%M UTC')}\n"
     )
     if sheet_url:
         body += f"\nView Programs sheet:\n{sheet_url}\n"
-    send_email(f"[China Programs] Crawl done — {total_programs} programs found", body_text=body)
+    send_email(f"[China Programs] +{total_programs} programs mới — {now.strftime('%d/%m %H:%M')}", body_text=body)
 
 
 if __name__ == "__main__":
