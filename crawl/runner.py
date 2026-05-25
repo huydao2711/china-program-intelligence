@@ -75,12 +75,60 @@ def get_sheet():
     return ws
 
 
-def write_to_sheet(ws, programs: list[dict]) -> int:
+def get_existing_keys(ws) -> set:
+    """Read application_link + name keys from Programs sheet for dedup."""
+    if not ws:
+        return set()
+    try:
+        all_vals = ws.get_all_values()
+        keys = set()
+        for row in all_vals[2:]:  # skip 2 header rows
+            if len(row) > 25:
+                link = row[25].strip()
+                name = row[0].strip()
+                org  = row[2].strip()
+                if link:
+                    keys.add(link)
+                elif name:
+                    keys.add(f"{name}|{org}")
+        print(f"[Sheet] Loaded {len(keys)} existing program keys")
+        return keys
+    except Exception as e:
+        print(f"[Sheet] get_existing_keys error: {e}")
+        return set()
+
+
+def _program_key(p: dict) -> str:
+    link = (p.get("application_link") or "").strip()
+    if link:
+        return link
+    name = (p.get("program_name_en") or p.get("chinese_name") or "").strip()
+    org  = (p.get("organization") or "").strip()
+    return f"{name}|{org}" if name else ""
+
+
+def write_to_sheet(ws, programs: list[dict], existing_keys: set) -> int:
     if not ws or not programs:
         return 0
     try:
-        rows = programs_to_rows(programs)
+        new_programs = []
+        for p in programs:
+            key = _program_key(p)
+            if key and key in existing_keys:
+                continue
+            new_programs.append(p)
+            if key:
+                existing_keys.add(key)
+
+        if not new_programs:
+            print(f"  -> All {len(programs)} already in sheet (skipped)")
+            return 0
+
+        rows = programs_to_rows(new_programs)
         ws.append_rows(rows, value_input_option="RAW")
+        skipped = len(programs) - len(new_programs)
+        if skipped:
+            print(f"  -> Wrote {len(rows)} rows ({skipped} duplicates skipped)")
         return len(rows)
     except Exception as e:
         print(f"[Sheet] Write error: {e}")
@@ -115,6 +163,7 @@ def run(test_mode: bool = False):
     print("=" * 65)
 
     ws = get_sheet()
+    existing_keys = get_existing_keys(ws)
     sources = ALL_SOURCES[:5] if test_mode else ALL_SOURCES
     print(f"Sources: {len(sources)} | Test mode: {test_mode}\n")
 
@@ -130,7 +179,7 @@ def run(test_mode: bool = False):
                 programs = crawl_source(source)
                 all_programs.extend(programs)
                 if ws and programs:
-                    written = write_to_sheet(ws, programs)
+                    written = write_to_sheet(ws, programs, existing_keys)
                     print(f"  -> Wrote {written} rows to Sheet")
             except Exception as e:
                 print(f"  ERROR: {e}")
