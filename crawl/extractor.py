@@ -4,7 +4,7 @@ crawl/extractor.py — Use Gemini to extract program info from raw webpage text.
 import os, json, re, time
 import requests
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
 EXTRACT_PROMPT_TEMPLATE = (
     "You are extracting China summer camp / exchange program data from a webpage.\n\n"
@@ -91,7 +91,6 @@ def extract_programs(text: str, source_url: str, source_name: str) -> list:
             "temperature": 0.1,
             "maxOutputTokens": 8192,
         },
-        "thinkingConfig": {"thinkingBudget": 0},  # required for gemini-2.5-flash
     }
 
     for attempt in range(5):
