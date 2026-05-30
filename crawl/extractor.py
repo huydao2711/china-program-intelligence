@@ -90,7 +90,8 @@ def extract_programs(text: str, source_url: str, source_name: str) -> list:
         "generationConfig": {
             "temperature": 0.1,
             "maxOutputTokens": 8192,
-        }
+        },
+        "thinkingConfig": {"thinkingBudget": 0},  # required for gemini-2.5-flash
     }
 
     for attempt in range(5):
@@ -100,6 +101,9 @@ def extract_programs(text: str, source_url: str, source_name: str) -> list:
                 json=payload,
                 timeout=60,
             )
+            if resp.status_code == 400:
+                print(f"[Extractor] Gemini 400: {resp.text[:300]}")
+                return []  # bad request — don't retry
             if resp.status_code == 503:
                 wait = 15 * (2 ** attempt)
                 print(f"[Extractor] Gemini 503 — retry {attempt+1}/5 in {wait}s")
