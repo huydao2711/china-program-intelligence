@@ -91,7 +91,6 @@ def extract_programs(text: str, source_url: str, source_name: str) -> list:
             "temperature": 0.1,
             "maxOutputTokens": 8192,
         },
-        "thinkingConfig": {"thinkingBudget": 0},
     }
 
     for attempt in range(5):
